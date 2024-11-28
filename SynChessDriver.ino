@@ -67,8 +67,6 @@
 
 #define M1_STP 3
 #define M2_STP 5
-#define DEFAULT_OBERGRENZE 10
-#define BESCHL_STEP 10
 #define DEFAULT_STP_TIME 100
 #define MICROSTEPS 8
 
