@@ -10,6 +10,8 @@
 * SCK -> Pin 13
 */
 
+// Middle X: 2235 Y: 1025
+
 #include "Arduino.h"
 #include <PCF8574.h>
 #include <MFRC522Plus.h>
@@ -57,14 +59,18 @@
 
 #define EMPTY_FIELD '0'
 
-#define STATUS_OK 'X'
+#define DRIVER_STATUS_OK 'X'
 
 // ****** Motors ******
 #define M1_DIR 2
 #define M2_DIR 4
+
 #define M1_STP 3
 #define M2_STP 5
-#define STP_TIME 200
+#define DEFAULT_OBERGRENZE 10
+#define BESCHL_STEP 10
+#define DEFAULT_STP_TIME 100
+#define MICROSTEPS 8
 
 // pcfs
 PCF8574 pcf1(0x20);
@@ -200,10 +206,15 @@ char convertByteInChess(byte buffer[]) {
     if(buffer[1] == 0x06) return mapHexToColorValue(WHITE_KOENIG, BLACK_KOENIG, buffer[0]);
 }
 
+/**
+ * stepCommand(): Executes the given step command
+ * @param command Command to execute
+*/ 
 void stepCommand(String command) {
   char direction = command.charAt(0);
-  int steps = atoi(command.substring(1, command.length()-1).c_str());
+  int steps = atoi(command.substring(1, command.length()).c_str());
 
+  Serial.println(steps);
   // direction switch
   switch (direction) {
     case 'L':
@@ -215,27 +226,47 @@ void stepCommand(String command) {
       digitalWrite(M2_DIR, HIGH);
       break;
     case 'U':
-      digitalWrite(M1_DIR, HIGH);
-      digitalWrite(M2_DIR, LOW);
-      break;
-    case 'D':
       digitalWrite(M1_DIR, LOW);
       digitalWrite(M2_DIR, HIGH);
       break;
+    case 'D':
+      digitalWrite(M1_DIR, HIGH);
+      digitalWrite(M2_DIR, LOW);
+      break;
   }
 
-  for(int i = 0; i < steps; i++) {
-    oneStep();
-  }
-}
+  int share = steps/9;
+  int perStep = 400/share;
+  int curr = DEFAULT_STP_TIME;
 
-void oneStep() {
-  digitalWrite(M1_STP, HIGH);
-  digitalWrite(M2_STP, HIGH);
-  delayMicroseconds(STP_TIME);
+  for(int i = 0; i < steps-share; i++) {
+    for(int j = 0; j < MICROSTEPS; j++) {
+      digitalWrite(M1_STP, HIGH);
+      digitalWrite(M2_STP, HIGH);
+      delayMicroseconds(DEFAULT_STP_TIME);
+      digitalWrite(M1_STP, LOW);
+      digitalWrite(M2_STP, LOW);
+      delayMicroseconds(DEFAULT_STP_TIME);
+    }
+  }
+  
+  for(int i = steps - share; i < steps; i++) {
+    curr += perStep;
+
+    for(int j = 0; j < MICROSTEPS; j++) {
+      digitalWrite(M1_STP, HIGH);
+      digitalWrite(M2_STP, HIGH);
+      delayMicroseconds(curr);
+      digitalWrite(M1_STP, LOW);
+      digitalWrite(M2_STP, LOW);
+      delayMicroseconds(curr);
+    }
+  }
+
+  digitalWrite(M1_DIR, LOW);
   digitalWrite(M1_STP, LOW);
+  digitalWrite(M2_DIR, LOW);
   digitalWrite(M2_STP, LOW);
-  delayMicroseconds(STP_TIME);
 }
 
 /**
@@ -244,7 +275,7 @@ void oneStep() {
 void setup() {
     // open serial and wait til opened
     Serial.begin(9600);
-    while(!Serial) {}
+    while(!Serial) {  }
 
     // init spi
     SPI.begin();
@@ -263,7 +294,7 @@ void setup() {
     // setup motor pins
     pinMode(M1_DIR, OUTPUT);
     pinMode(M2_DIR, OUTPUT);
-    pinMode(M2_STP, OUTPUT);
+    pinMode(M1_STP, OUTPUT);
     pinMode(M2_STP, OUTPUT);
 
     digitalWrite(M1_DIR, LOW);
@@ -281,20 +312,33 @@ void loop() {
     if(Serial.available() > 0) {
       // format is command;command;
       readVal = Serial.readStringUntil(';');
-      
-      // test tomorrow please!!!
-      Serial.println(readVal);
 
       // if command is read
       if(readVal.charAt(0) == 'R') {
         int val = atoi(readVal.substring(1,3).c_str());
-        Serial.print(readRFID(scanner[val]));
+        Serial.println(readRFID(scanner[val]));
+      }
+
+      // if command is read all
+      if(readVal.charAt(0) == 'B') {
+        char scan[128];
+
+        for(int i = 0; i < MFRCCOUNT; i++) {
+          sprintf(scan, "%s%c", scan, readRFID(scanner[i]));
+        }
+
+        Serial.println(scan);
       }
 
       // if command is step
       else if(readVal.charAt(0) == 'S') {
-        stepCommand(readVal.substring(1,readVal.length()-1));
-        Serial.print(STATUS_OK);
+        stepCommand(readVal.substring(1,readVal.length()));
+        Serial.println(DRIVER_STATUS_OK);
+      }
+
+      // if command is are you still there
+      else if(readVal.charAt(0) == 'A') {
+        Serial.println(DRIVER_STATUS_OK);
       }
     }
 
