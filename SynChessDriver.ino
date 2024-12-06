@@ -10,16 +10,13 @@
 * SCK -> Pin 13
 */
 
-// Middle X: 2235 Y: 1025
-
 #include "Arduino.h"
 #include <PCF8574.h>
 #include <MFRC522Plus.h>
 #include <SPI.h>
 
-// bus defines
-#define MFRCCOUNT 3
-#define RST_BUS 9
+// NFC reader stuff
+#define MFRCCOUNT 64
 #define BLOCK 4
 
 // chess figure defines
@@ -59,25 +56,108 @@
 
 #define EMPTY_FIELD '0'
 
+#define DRIVER_CMD_READALL 'B'
+#define DRIVER_CMD_READ 'R'
+#define DRIVER_CMD_AVAILABLE 'A'
+#define DRIVER_CMD_STP 'S'
+#define DRIVER_CMD_HOME 'H'
 #define DRIVER_STATUS_OK 'X'
 
-// ****** Motors ******
+// ****** Pin mappings ******
 #define M1_DIR 2
-#define M2_DIR 4
-
 #define M1_STP 3
+#define M2_DIR 4
 #define M2_STP 5
+
+#define LS_HOME_X 6
+#define LS_HOME_Y1 7
+#define LS_HOME_Y2 8
+
+#define RST_BUS 9
+#define MOSI_BUS 11
+#define MISO_BUS 12
+#define SCK_BUS 13
+
+// ****** Motor Settings ******
 #define DEFAULT_STP_TIME 100
 #define MICROSTEPS 8
 
 // pcfs
 PCF8574 pcf1(0x20);
+PCF8574 pcf2(0x21);
+PCF8574 pcf3(0x22);
+PCF8574 pcf4(0x23);
+PCF8574 pcf5(0x24);
+PCF8574 pcf6(0x25);
+PCF8574 pcf7(0x26);
+PCF8574 pcf8(0x27);
 
 // scanner
 MFRC522Plus* scanner[] = {
     new MFRC522Plus(&pcf1, 0, RST_BUS),
     new MFRC522Plus(&pcf1, 1, RST_BUS),
     new MFRC522Plus(&pcf1, 2, RST_BUS),
+    new MFRC522Plus(&pcf1, 3, RST_BUS),
+    new MFRC522Plus(&pcf1, 4, RST_BUS),
+    new MFRC522Plus(&pcf1, 5, RST_BUS),
+    new MFRC522Plus(&pcf1, 6, RST_BUS),
+    new MFRC522Plus(&pcf1, 7, RST_BUS),
+    new MFRC522Plus(&pcf2, 0, RST_BUS),
+    new MFRC522Plus(&pcf2, 1, RST_BUS),
+    new MFRC522Plus(&pcf2, 2, RST_BUS),
+    new MFRC522Plus(&pcf2, 3, RST_BUS),
+    new MFRC522Plus(&pcf2, 4, RST_BUS),
+    new MFRC522Plus(&pcf2, 5, RST_BUS),
+    new MFRC522Plus(&pcf2, 6, RST_BUS),
+    new MFRC522Plus(&pcf2, 7, RST_BUS),
+    new MFRC522Plus(&pcf3, 0, RST_BUS),
+    new MFRC522Plus(&pcf3, 1, RST_BUS),
+    new MFRC522Plus(&pcf3, 2, RST_BUS),
+    new MFRC522Plus(&pcf3, 3, RST_BUS),
+    new MFRC522Plus(&pcf3, 4, RST_BUS),
+    new MFRC522Plus(&pcf3, 5, RST_BUS),
+    new MFRC522Plus(&pcf3, 6, RST_BUS),
+    new MFRC522Plus(&pcf3, 7, RST_BUS),
+    new MFRC522Plus(&pcf4, 0, RST_BUS),
+    new MFRC522Plus(&pcf4, 1, RST_BUS),
+    new MFRC522Plus(&pcf4, 2, RST_BUS),
+    new MFRC522Plus(&pcf4, 3, RST_BUS),
+    new MFRC522Plus(&pcf4, 4, RST_BUS),
+    new MFRC522Plus(&pcf4, 5, RST_BUS),
+    new MFRC522Plus(&pcf4, 6, RST_BUS),
+    new MFRC522Plus(&pcf4, 7, RST_BUS),
+    new MFRC522Plus(&pcf5, 0, RST_BUS),
+    new MFRC522Plus(&pcf5, 1, RST_BUS),
+    new MFRC522Plus(&pcf5, 2, RST_BUS),
+    new MFRC522Plus(&pcf5, 3, RST_BUS),
+    new MFRC522Plus(&pcf5, 4, RST_BUS),
+    new MFRC522Plus(&pcf5, 5, RST_BUS),
+    new MFRC522Plus(&pcf5, 6, RST_BUS),
+    new MFRC522Plus(&pcf5, 7, RST_BUS),
+    new MFRC522Plus(&pcf6, 0, RST_BUS),
+    new MFRC522Plus(&pcf6, 1, RST_BUS),
+    new MFRC522Plus(&pcf6, 2, RST_BUS),
+    new MFRC522Plus(&pcf6, 3, RST_BUS),
+    new MFRC522Plus(&pcf6, 4, RST_BUS),
+    new MFRC522Plus(&pcf6, 5, RST_BUS),
+    new MFRC522Plus(&pcf6, 6, RST_BUS),
+    new MFRC522Plus(&pcf6, 7, RST_BUS),
+    new MFRC522Plus(&pcf7, 0, RST_BUS),
+    new MFRC522Plus(&pcf7, 1, RST_BUS),
+    new MFRC522Plus(&pcf7, 2, RST_BUS),
+    new MFRC522Plus(&pcf7, 3, RST_BUS),
+    new MFRC522Plus(&pcf7, 4, RST_BUS),
+    new MFRC522Plus(&pcf7, 5, RST_BUS),
+    new MFRC522Plus(&pcf7, 6, RST_BUS),
+    new MFRC522Plus(&pcf7, 7, RST_BUS),
+    new MFRC522Plus(&pcf8, 0, RST_BUS),
+    new MFRC522Plus(&pcf8, 1, RST_BUS),
+    new MFRC522Plus(&pcf8, 2, RST_BUS),
+    new MFRC522Plus(&pcf8, 3, RST_BUS),
+    new MFRC522Plus(&pcf8, 4, RST_BUS),
+    new MFRC522Plus(&pcf8, 5, RST_BUS),
+    new MFRC522Plus(&pcf8, 6, RST_BUS),
+    new MFRC522Plus(&pcf8, 7, RST_BUS)
 };
 
 /**
@@ -237,27 +317,19 @@ void stepCommand(String command) {
   int perStep = 400/share;
   int curr = DEFAULT_STP_TIME;
 
+  // step normal until the last nineth
   for(int i = 0; i < steps-share; i++) {
     for(int j = 0; j < MICROSTEPS; j++) {
-      digitalWrite(M1_STP, HIGH);
-      digitalWrite(M2_STP, HIGH);
-      delayMicroseconds(DEFAULT_STP_TIME);
-      digitalWrite(M1_STP, LOW);
-      digitalWrite(M2_STP, LOW);
-      delayMicroseconds(DEFAULT_STP_TIME);
+      oneStep(DEFAULT_STP_TIME);
     }
   }
   
+  // deccelerate
   for(int i = steps - share; i < steps; i++) {
     curr += perStep;
 
     for(int j = 0; j < MICROSTEPS; j++) {
-      digitalWrite(M1_STP, HIGH);
-      digitalWrite(M2_STP, HIGH);
-      delayMicroseconds(curr);
-      digitalWrite(M1_STP, LOW);
-      digitalWrite(M2_STP, LOW);
-      delayMicroseconds(curr);
+      oneStep(curr);
     }
   }
 
@@ -265,6 +337,41 @@ void stepCommand(String command) {
   digitalWrite(M1_STP, LOW);
   digitalWrite(M2_DIR, LOW);
   digitalWrite(M2_STP, LOW);
+}
+
+/**
+ * oneStep(): Sends one Pulse to the STP - Pin with the on-time of
+ * <speed>
+ * @param speed time of the rectangular signal
+*/
+void oneStep(int speed) {
+  digitalWrite(M1_STP, HIGH);
+  digitalWrite(M2_STP, HIGH);
+  delayMicroseconds(speed);
+  digitalWrite(M1_STP, LOW);
+  digitalWrite(M2_STP, LOW);
+  delayMicroseconds(speed);
+}
+
+/**
+ * home(): Moves the Core - XY to (0 0)
+*/
+void home() {
+  // move x
+  digitalWrite(M1_DIR, LOW);
+  digitalWrite(M2_DIR, LOW);
+
+  while(digitalRead(LS_HOME_X) != HIGH) {
+    oneStep(DEFAULT_STP_TIME);
+  }
+
+  // move y
+  digitalWrite(M1_DIR, LOW);
+  digitalWrite(M2_DIR, HIGH);
+
+  while(digitalRead(LS_HOME_Y1) != HIGH && digitalRead(LS_HOME_Y2) != HIGH) {
+    oneStep(DEFAULT_STP_TIME);
+  }
 }
 
 /**
@@ -295,6 +402,10 @@ void setup() {
     pinMode(M1_STP, OUTPUT);
     pinMode(M2_STP, OUTPUT);
 
+    pinMode(LS_HOME_X, INPUT);
+    pinMode(LS_HOME_Y1, INPUT);
+    pinMode(LS_HOME_Y2, INPUT);
+
     digitalWrite(M1_DIR, LOW);
     digitalWrite(M1_STP, LOW);
     digitalWrite(M2_DIR, LOW);
@@ -312,13 +423,13 @@ void loop() {
       readVal = Serial.readStringUntil(';');
 
       // if command is read
-      if(readVal.charAt(0) == 'R') {
+      if(readVal.charAt(0) == DRIVER_CMD_READ) {
         int val = atoi(readVal.substring(1,3).c_str());
         Serial.println(readRFID(scanner[val]));
       }
 
       // if command is read all
-      if(readVal.charAt(0) == 'B') {
+      if(readVal.charAt(0) == DRIVER_CMD_READALL) {
         char scan[128];
 
         for(int i = 0; i < MFRCCOUNT; i++) {
@@ -329,13 +440,19 @@ void loop() {
       }
 
       // if command is step
-      else if(readVal.charAt(0) == 'S') {
+      else if(readVal.charAt(0) == DRIVER_CMD_STP) {
         stepCommand(readVal.substring(1,readVal.length()));
         Serial.println(DRIVER_STATUS_OK);
       }
 
+      // if command is home
+      else if(readVal.charAt(0) == DRIVER_CMD_HOME) {
+        home();
+        Serial.println(DRIVER_STATUS_OK);
+      }
+
       // if command is are you still there
-      else if(readVal.charAt(0) == 'A') {
+      else if(readVal.charAt(0) == DRIVER_CMD_AVAILABLE) {
         Serial.println(DRIVER_STATUS_OK);
       }
     }
