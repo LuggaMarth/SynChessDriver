@@ -8,6 +8,9 @@
 * MOSI -> Pin 11
 * MISO -> Pin 12
 * SCK -> Pin 13
+* 
+* X: 4325
+*
 */
 
 #include "Arduino.h"
@@ -16,7 +19,7 @@
 #include <SPI.h>
 
 // NFC reader stuff
-#define MFRCCOUNT 64
+#define MFRCCOUNT 2
 #define BLOCK 4
 
 // chess figure defines
@@ -84,81 +87,83 @@
 
 // pcfs
 PCF8574 pcf1(0x20);
-PCF8574 pcf2(0x21);
-PCF8574 pcf3(0x22);
-PCF8574 pcf4(0x23);
-PCF8574 pcf5(0x24);
-PCF8574 pcf6(0x25);
-PCF8574 pcf7(0x26);
-PCF8574 pcf8(0x27);
+// PCF8574 pcf2(0x21);
+// PCF8574 pcf3(0x22);
+// PCF8574 pcf4(0x23);
+// PCF8574 pcf5(0x24);
+// PCF8574 pcf6(0x25);
+// PCF8574 pcf7(0x26);
+// PCF8574 pcf8(0x27);
 
 // scanner
 MFRC522Plus* scanner[] = {
     new MFRC522Plus(&pcf1, 0, RST_BUS),
     new MFRC522Plus(&pcf1, 1, RST_BUS),
-    new MFRC522Plus(&pcf1, 2, RST_BUS),
-    new MFRC522Plus(&pcf1, 3, RST_BUS),
-    new MFRC522Plus(&pcf1, 4, RST_BUS),
-    new MFRC522Plus(&pcf1, 5, RST_BUS),
-    new MFRC522Plus(&pcf1, 6, RST_BUS),
-    new MFRC522Plus(&pcf1, 7, RST_BUS),
-    new MFRC522Plus(&pcf2, 0, RST_BUS),
-    new MFRC522Plus(&pcf2, 1, RST_BUS),
-    new MFRC522Plus(&pcf2, 2, RST_BUS),
-    new MFRC522Plus(&pcf2, 3, RST_BUS),
-    new MFRC522Plus(&pcf2, 4, RST_BUS),
-    new MFRC522Plus(&pcf2, 5, RST_BUS),
-    new MFRC522Plus(&pcf2, 6, RST_BUS),
-    new MFRC522Plus(&pcf2, 7, RST_BUS),
-    new MFRC522Plus(&pcf3, 0, RST_BUS),
-    new MFRC522Plus(&pcf3, 1, RST_BUS),
-    new MFRC522Plus(&pcf3, 2, RST_BUS),
-    new MFRC522Plus(&pcf3, 3, RST_BUS),
-    new MFRC522Plus(&pcf3, 4, RST_BUS),
-    new MFRC522Plus(&pcf3, 5, RST_BUS),
-    new MFRC522Plus(&pcf3, 6, RST_BUS),
-    new MFRC522Plus(&pcf3, 7, RST_BUS),
-    new MFRC522Plus(&pcf4, 0, RST_BUS),
-    new MFRC522Plus(&pcf4, 1, RST_BUS),
-    new MFRC522Plus(&pcf4, 2, RST_BUS),
-    new MFRC522Plus(&pcf4, 3, RST_BUS),
-    new MFRC522Plus(&pcf4, 4, RST_BUS),
-    new MFRC522Plus(&pcf4, 5, RST_BUS),
-    new MFRC522Plus(&pcf4, 6, RST_BUS),
-    new MFRC522Plus(&pcf4, 7, RST_BUS),
-    new MFRC522Plus(&pcf5, 0, RST_BUS),
-    new MFRC522Plus(&pcf5, 1, RST_BUS),
-    new MFRC522Plus(&pcf5, 2, RST_BUS),
-    new MFRC522Plus(&pcf5, 3, RST_BUS),
-    new MFRC522Plus(&pcf5, 4, RST_BUS),
-    new MFRC522Plus(&pcf5, 5, RST_BUS),
-    new MFRC522Plus(&pcf5, 6, RST_BUS),
-    new MFRC522Plus(&pcf5, 7, RST_BUS),
-    new MFRC522Plus(&pcf6, 0, RST_BUS),
-    new MFRC522Plus(&pcf6, 1, RST_BUS),
-    new MFRC522Plus(&pcf6, 2, RST_BUS),
-    new MFRC522Plus(&pcf6, 3, RST_BUS),
-    new MFRC522Plus(&pcf6, 4, RST_BUS),
-    new MFRC522Plus(&pcf6, 5, RST_BUS),
-    new MFRC522Plus(&pcf6, 6, RST_BUS),
-    new MFRC522Plus(&pcf6, 7, RST_BUS),
-    new MFRC522Plus(&pcf7, 0, RST_BUS),
-    new MFRC522Plus(&pcf7, 1, RST_BUS),
-    new MFRC522Plus(&pcf7, 2, RST_BUS),
-    new MFRC522Plus(&pcf7, 3, RST_BUS),
-    new MFRC522Plus(&pcf7, 4, RST_BUS),
-    new MFRC522Plus(&pcf7, 5, RST_BUS),
-    new MFRC522Plus(&pcf7, 6, RST_BUS),
-    new MFRC522Plus(&pcf7, 7, RST_BUS),
-    new MFRC522Plus(&pcf8, 0, RST_BUS),
-    new MFRC522Plus(&pcf8, 1, RST_BUS),
-    new MFRC522Plus(&pcf8, 2, RST_BUS),
-    new MFRC522Plus(&pcf8, 3, RST_BUS),
-    new MFRC522Plus(&pcf8, 4, RST_BUS),
-    new MFRC522Plus(&pcf8, 5, RST_BUS),
-    new MFRC522Plus(&pcf8, 6, RST_BUS),
-    new MFRC522Plus(&pcf8, 7, RST_BUS)
+    // new MFRC522Plus(&pcf1, 2, RST_BUS),
+    // new MFRC522Plus(&pcf1, 3, RST_BUS),
+    // new MFRC522Plus(&pcf1, 4, RST_BUS),
+    // new MFRC522Plus(&pcf1, 5, RST_BUS),
+    // new MFRC522Plus(&pcf1, 6, RST_BUS),
+    // new MFRC522Plus(&pcf1, 7, RST_BUS),
+    // new MFRC522Plus(&pcf2, 0, RST_BUS),
+    // new MFRC522Plus(&pcf2, 1, RST_BUS),
+    // new MFRC522Plus(&pcf2, 2, RST_BUS),
+    // new MFRC522Plus(&pcf2, 3, RST_BUS),
+    // new MFRC522Plus(&pcf2, 4, RST_BUS),
+    // new MFRC522Plus(&pcf2, 5, RST_BUS),
+    // new MFRC522Plus(&pcf2, 6, RST_BUS),
+    // new MFRC522Plus(&pcf2, 7, RST_BUS),
+    // new MFRC522Plus(&pcf3, 0, RST_BUS),
+    // new MFRC522Plus(&pcf3, 1, RST_BUS),
+    // new MFRC522Plus(&pcf3, 2, RST_BUS),
+    // new MFRC522Plus(&pcf3, 3, RST_BUS),
+    // new MFRC522Plus(&pcf3, 4, RST_BUS),
+    // new MFRC522Plus(&pcf3, 5, RST_BUS),
+    // new MFRC522Plus(&pcf3, 6, RST_BUS),
+    // new MFRC522Plus(&pcf3, 7, RST_BUS),
+    // new MFRC522Plus(&pcf4, 0, RST_BUS),
+    // new MFRC522Plus(&pcf4, 1, RST_BUS),
+    // new MFRC522Plus(&pcf4, 2, RST_BUS),
+    // new MFRC522Plus(&pcf4, 3, RST_BUS),
+    // new MFRC522Plus(&pcf4, 4, RST_BUS),
+    // new MFRC522Plus(&pcf4, 5, RST_BUS),
+    // new MFRC522Plus(&pcf4, 6, RST_BUS),
+    // new MFRC522Plus(&pcf4, 7, RST_BUS),
+    // new MFRC522Plus(&pcf5, 0, RST_BUS),
+    // new MFRC522Plus(&pcf5, 1, RST_BUS),
+    // new MFRC522Plus(&pcf5, 2, RST_BUS),
+    // new MFRC522Plus(&pcf5, 3, RST_BUS),
+    // new MFRC522Plus(&pcf5, 4, RST_BUS),
+    // new MFRC522Plus(&pcf5, 5, RST_BUS),
+    // new MFRC522Plus(&pcf5, 6, RST_BUS),
+    // new MFRC522Plus(&pcf5, 7, RST_BUS),
+    // new MFRC522Plus(&pcf6, 0, RST_BUS),
+    // new MFRC522Plus(&pcf6, 1, RST_BUS),
+    // new MFRC522Plus(&pcf6, 2, RST_BUS),
+    // new MFRC522Plus(&pcf6, 3, RST_BUS),
+    // new MFRC522Plus(&pcf6, 4, RST_BUS),
+    // new MFRC522Plus(&pcf6, 5, RST_BUS),
+    // new MFRC522Plus(&pcf6, 6, RST_BUS),
+    // new MFRC522Plus(&pcf6, 7, RST_BUS),
+    // new MFRC522Plus(&pcf7, 0, RST_BUS),
+    // new MFRC522Plus(&pcf7, 1, RST_BUS),
+    // new MFRC522Plus(&pcf7, 2, RST_BUS),
+    // new MFRC522Plus(&pcf7, 3, RST_BUS),
+    // new MFRC522Plus(&pcf7, 4, RST_BUS),
+    // new MFRC522Plus(&pcf7, 5, RST_BUS),
+    // new MFRC522Plus(&pcf7, 6, RST_BUS),
+    // new MFRC522Plus(&pcf7, 7, RST_BUS),
+    // new MFRC522Plus(&pcf8, 0, RST_BUS),
+    // new MFRC522Plus(&pcf8, 1, RST_BUS),
+    // new MFRC522Plus(&pcf8, 2, RST_BUS),
+    // new MFRC522Plus(&pcf8, 3, RST_BUS),
+    // new MFRC522Plus(&pcf8, 4, RST_BUS),
+    // new MFRC522Plus(&pcf8, 5, RST_BUS),
+    // new MFRC522Plus(&pcf8, 6, RST_BUS),
+    // new MFRC522Plus(&pcf8, 7, RST_BUS)
 };
+
+bool doneCommandLoop = false;
 
 /**
  * mapHexToColorValue(): Takes two color inputs and outputs the corresponding value to the color hex.
@@ -226,7 +231,7 @@ char readRFID(MFRC522Plus* mfrc522) {
 char convertByteInChess(byte buffer[]) {
     // checksum?
     if(buffer[3] != 0xEF) {
-        return EMPTY_FIELD;
+        return 'I';
     }
 
     // bauern
@@ -268,13 +273,13 @@ char convertByteInChess(byte buffer[]) {
     // springer
     if(buffer[1] == 0x03) {
         if(buffer[2] == 0x01) return mapHexToColorValue(WHITE_SPRINGER_L, BLACK_SPRINGER_L, buffer[0]);
-        else return mapHexToColorValue(WHITE_SPRINGER_R, BLACK_SPRINGER_R, buffer[0]);;
+        else return mapHexToColorValue(WHITE_SPRINGER_R, BLACK_SPRINGER_R, buffer[0]);
     }
 
     // laufer
     if(buffer[1] == 0x04) {
         if(buffer[2] == 0x01) return mapHexToColorValue(WHITE_LAEUFER_L, BLACK_LAEUFER_L, buffer[0]);
-        else return mapHexToColorValue(WHITE_LAEUFER_R, BLACK_LAEUFER_R, buffer[0]);;
+        else return mapHexToColorValue(WHITE_LAEUFER_R, BLACK_LAEUFER_R, buffer[0]);
     }
 
     // queen
@@ -292,7 +297,6 @@ void stepCommand(String command) {
   char direction = command.charAt(0);
   int steps = atoi(command.substring(1, command.length()).c_str());
 
-  Serial.println(steps);
   // direction switch
   switch (direction) {
     case 'L':
@@ -380,23 +384,24 @@ void home() {
 void setup() {
     // open serial and wait til opened
     Serial.begin(9600);
-    while(!Serial) {  }
+    while(!Serial) {  
+    }
 
     // init spi
     SPI.begin();
 
-    // init pcf
+    // // init pcf
     pcf1.begin();
 
     // init mfrcs
     for(int i = 0; i < MFRCCOUNT; i++) {
-        scanner[i]->PCD_Init();
+      scanner[i]->PCD_Init();
     }
 
-    // Test if code works [DEBUG]
-    //Serial.print(readRFID(scanner[0]));
+    // // Test if code works [DEBUG]
+    // //Serial.print(readRFID(scanner[0]));
 
-    // setup motor pins
+    // // setup motor pins
     pinMode(M1_DIR, OUTPUT);
     pinMode(M2_DIR, OUTPUT);
     pinMode(M1_STP, OUTPUT);
@@ -442,19 +447,24 @@ void loop() {
       // if command is step
       else if(readVal.charAt(0) == DRIVER_CMD_STP) {
         stepCommand(readVal.substring(1,readVal.length()));
-        Serial.println(DRIVER_STATUS_OK);
+        doneCommandLoop = true;
       }
 
       // if command is home
       else if(readVal.charAt(0) == DRIVER_CMD_HOME) {
         home();
-        Serial.println(DRIVER_STATUS_OK);
+        doneCommandLoop = true;
       }
 
       // if command is are you still there
-      else if(readVal.charAt(0) == DRIVER_CMD_AVAILABLE) {
-        Serial.println(DRIVER_STATUS_OK);
+      else if(readVal.charAt(0) == 'A') {
+        doneCommandLoop = true;
       }
+    } 
+
+    else if(doneCommandLoop) {
+      doneCommandLoop = false;
+      Serial.println(DRIVER_STATUS_OK);
     }
 
     // sleep 10ms
