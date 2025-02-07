@@ -14,12 +14,10 @@
 */
 
 #include "Arduino.h"
-#include <PCF8574.h>
-#include <MFRC522Plus.h>
 #include <SPI.h>
+#include <MFRC522.h>
 
 // NFC reader stuff
-#define MFRCCOUNT 2
 #define BLOCK 4
 
 // chess figure defines
@@ -59,12 +57,15 @@
 
 #define EMPTY_FIELD '0'
 
-#define DRIVER_CMD_READALL 'B'
+#define DRIVER_CMD_READ_CENTER 'B'
+#define DRIVER_CMD_READ_OUT_WHITE 'W'
+#define DRIVER_CMD_READ_OUT_BLACK 'O'
 #define DRIVER_CMD_READ 'R'
 #define DRIVER_CMD_AVAILABLE 'A'
 #define DRIVER_CMD_STP 'S'
 #define DRIVER_CMD_HOME 'H'
 #define DRIVER_STATUS_OK 'X'
+#define DRIVER_CMD_MAGNET 'M'
 
 // ****** Pin mappings ******
 #define M1_DIR 2
@@ -76,93 +77,16 @@
 #define LS_HOME_Y1 7
 #define LS_HOME_Y2 8
 
+#define CHIP_SELECT 10
 #define RST_BUS 9
-#define MOSI_BUS 11
-#define MISO_BUS 12
-#define SCK_BUS 13
+
+#define PIN_MAGNET 22
 
 // ****** Motor Settings ******
 #define DEFAULT_STP_TIME 100
 #define MICROSTEPS 8
 
-// pcfs
-PCF8574 pcf1(0x20);
-// PCF8574 pcf2(0x21);
-// PCF8574 pcf3(0x22);
-// PCF8574 pcf4(0x23);
-// PCF8574 pcf5(0x24);
-// PCF8574 pcf6(0x25);
-// PCF8574 pcf7(0x26);
-// PCF8574 pcf8(0x27);
-
-// scanner
-MFRC522Plus* scanner[] = {
-    new MFRC522Plus(&pcf1, 0, RST_BUS),
-    new MFRC522Plus(&pcf1, 1, RST_BUS),
-    // new MFRC522Plus(&pcf1, 2, RST_BUS),
-    // new MFRC522Plus(&pcf1, 3, RST_BUS),
-    // new MFRC522Plus(&pcf1, 4, RST_BUS),
-    // new MFRC522Plus(&pcf1, 5, RST_BUS),
-    // new MFRC522Plus(&pcf1, 6, RST_BUS),
-    // new MFRC522Plus(&pcf1, 7, RST_BUS),
-    // new MFRC522Plus(&pcf2, 0, RST_BUS),
-    // new MFRC522Plus(&pcf2, 1, RST_BUS),
-    // new MFRC522Plus(&pcf2, 2, RST_BUS),
-    // new MFRC522Plus(&pcf2, 3, RST_BUS),
-    // new MFRC522Plus(&pcf2, 4, RST_BUS),
-    // new MFRC522Plus(&pcf2, 5, RST_BUS),
-    // new MFRC522Plus(&pcf2, 6, RST_BUS),
-    // new MFRC522Plus(&pcf2, 7, RST_BUS),
-    // new MFRC522Plus(&pcf3, 0, RST_BUS),
-    // new MFRC522Plus(&pcf3, 1, RST_BUS),
-    // new MFRC522Plus(&pcf3, 2, RST_BUS),
-    // new MFRC522Plus(&pcf3, 3, RST_BUS),
-    // new MFRC522Plus(&pcf3, 4, RST_BUS),
-    // new MFRC522Plus(&pcf3, 5, RST_BUS),
-    // new MFRC522Plus(&pcf3, 6, RST_BUS),
-    // new MFRC522Plus(&pcf3, 7, RST_BUS),
-    // new MFRC522Plus(&pcf4, 0, RST_BUS),
-    // new MFRC522Plus(&pcf4, 1, RST_BUS),
-    // new MFRC522Plus(&pcf4, 2, RST_BUS),
-    // new MFRC522Plus(&pcf4, 3, RST_BUS),
-    // new MFRC522Plus(&pcf4, 4, RST_BUS),
-    // new MFRC522Plus(&pcf4, 5, RST_BUS),
-    // new MFRC522Plus(&pcf4, 6, RST_BUS),
-    // new MFRC522Plus(&pcf4, 7, RST_BUS),
-    // new MFRC522Plus(&pcf5, 0, RST_BUS),
-    // new MFRC522Plus(&pcf5, 1, RST_BUS),
-    // new MFRC522Plus(&pcf5, 2, RST_BUS),
-    // new MFRC522Plus(&pcf5, 3, RST_BUS),
-    // new MFRC522Plus(&pcf5, 4, RST_BUS),
-    // new MFRC522Plus(&pcf5, 5, RST_BUS),
-    // new MFRC522Plus(&pcf5, 6, RST_BUS),
-    // new MFRC522Plus(&pcf5, 7, RST_BUS),
-    // new MFRC522Plus(&pcf6, 0, RST_BUS),
-    // new MFRC522Plus(&pcf6, 1, RST_BUS),
-    // new MFRC522Plus(&pcf6, 2, RST_BUS),
-    // new MFRC522Plus(&pcf6, 3, RST_BUS),
-    // new MFRC522Plus(&pcf6, 4, RST_BUS),
-    // new MFRC522Plus(&pcf6, 5, RST_BUS),
-    // new MFRC522Plus(&pcf6, 6, RST_BUS),
-    // new MFRC522Plus(&pcf6, 7, RST_BUS),
-    // new MFRC522Plus(&pcf7, 0, RST_BUS),
-    // new MFRC522Plus(&pcf7, 1, RST_BUS),
-    // new MFRC522Plus(&pcf7, 2, RST_BUS),
-    // new MFRC522Plus(&pcf7, 3, RST_BUS),
-    // new MFRC522Plus(&pcf7, 4, RST_BUS),
-    // new MFRC522Plus(&pcf7, 5, RST_BUS),
-    // new MFRC522Plus(&pcf7, 6, RST_BUS),
-    // new MFRC522Plus(&pcf7, 7, RST_BUS),
-    // new MFRC522Plus(&pcf8, 0, RST_BUS),
-    // new MFRC522Plus(&pcf8, 1, RST_BUS),
-    // new MFRC522Plus(&pcf8, 2, RST_BUS),
-    // new MFRC522Plus(&pcf8, 3, RST_BUS),
-    // new MFRC522Plus(&pcf8, 4, RST_BUS),
-    // new MFRC522Plus(&pcf8, 5, RST_BUS),
-    // new MFRC522Plus(&pcf8, 6, RST_BUS),
-    // new MFRC522Plus(&pcf8, 7, RST_BUS)
-};
-
+MFRC522 chessReader(RST_BUS, CHIP_SELECT);
 bool doneCommandLoop = false;
 
 /**
@@ -188,11 +112,11 @@ char mapHexToColorValue(char whiteValue, char blackValue, byte colorHex) {
  * @param mfrc522 Sensor instance
  * @return char code
  */
-char readRFID(MFRC522Plus* mfrc522) {
+char readRFID() {
     // Look for a card
-    if (mfrc522->PICC_IsCardPresent()) {
+    if (chessReader.PICC_IsNewCardPresent()) {
         // Authentificate for block with key A (default key)
-        MFRC522Plus::MIFARE_Key key;
+        MFRC522::MIFARE_Key key;
         for (byte i = 0; i < 6; i++) {
             key.keyByte[i] = 0xFF;
         }
@@ -202,19 +126,19 @@ char readRFID(MFRC522Plus* mfrc522) {
         byte size = sizeof(buffer);
 
         // Authenticate the block 4 (if not ok, return)
-        MFRC522Plus::StatusCode status = mfrc522->PCD_Authenticate(MFRC522Plus::PICC_CMD_MF_AUTH_KEY_A, BLOCK, &key, &(mfrc522->uid));
-        if (status != MFRC522Plus::STATUS_OK) {
+        MFRC522::StatusCode status = chessReader.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, BLOCK, &key, &(chessReader.uid));
+        if (status != MFRC522::STATUS_OK) {
             return EMPTY_FIELD;
         }
         // Read data from block 4
-        status = mfrc522->MIFARE_Read(BLOCK, buffer, &size);
-        if (status != MFRC522Plus::STATUS_OK) {
+        status = chessReader.MIFARE_Read(BLOCK, buffer, &size);
+        if (status != MFRC522::STATUS_OK) {
             return EMPTY_FIELD;
         }
 
         // Stop encryption on the PICC
-        mfrc522->PICC_IsCardPresent();
-        mfrc522->PCD_StopCrypto1();
+        chessReader.PICC_HaltA();
+        chessReader.PCD_StopCrypto1();
 
         // return
         return convertByteInChess(buffer);
@@ -231,7 +155,7 @@ char readRFID(MFRC522Plus* mfrc522) {
 char convertByteInChess(byte buffer[]) {
     // checksum?
     if(buffer[3] != 0xEF) {
-        return 'I';
+        return EMPTY_FIELD;
     }
 
     // bauern
@@ -379,27 +303,29 @@ void home() {
 }
 
 /**
- *  setup(): Setup runs once to set up the components
+ * switchMagnet(): Switches the magnet on and off
+*/
+void switchMagnet(int state) {
+  if(state == 1) {
+    digitalWrite(PIN_MAGNET, HIGH);
+  } else if(state == 0){
+    digitalWrite(PIN_MAGNET, LOW);
+  }
+}
+
+/**
+ * setup(): Setup runs once to set up the components
  */
 void setup() {
     // open serial and wait til opened
     Serial.begin(9600);
-    while(!Serial) {  
-    }
+    while(!Serial) {  }
 
     // init spi
     SPI.begin();
 
-    // // init pcf
-    pcf1.begin();
-
-    // init mfrcs
-    for(int i = 0; i < MFRCCOUNT; i++) {
-      scanner[i]->PCD_Init();
-    }
-
-    // // Test if code works [DEBUG]
-    // //Serial.print(readRFID(scanner[0]));
+    // initialize scanner
+    chessReader.PCD_Init();
 
     // // setup motor pins
     pinMode(M1_DIR, OUTPUT);
@@ -410,6 +336,9 @@ void setup() {
     pinMode(LS_HOME_X, INPUT);
     pinMode(LS_HOME_Y1, INPUT);
     pinMode(LS_HOME_Y2, INPUT);
+
+    pinMode(PIN_MAGNET, OUTPUT);
+    digitalWrite(PIN_MAGNET, LOW);
 
     digitalWrite(M1_DIR, LOW);
     digitalWrite(M1_STP, LOW);
@@ -427,19 +356,9 @@ void loop() {
       // format is command;command;
       readVal = Serial.readStringUntil(';');
 
-      // if command is read
-      if(readVal.charAt(0) == DRIVER_CMD_READ) {
-        int val = atoi(readVal.substring(1,3).c_str());
-        Serial.println(readRFID(scanner[val]));
-      }
-
       // if command is read all
-      if(readVal.charAt(0) == DRIVER_CMD_READALL) {
+      if(readVal.charAt(0) == DRIVER_CMD_READ_CENTER) {
         char scan[128];
-
-        for(int i = 0; i < MFRCCOUNT; i++) {
-          sprintf(scan, "%s%c", scan, readRFID(scanner[i]));
-        }
 
         Serial.println(scan);
       }
@@ -459,6 +378,10 @@ void loop() {
       // if command is are you still there
       else if(readVal.charAt(0) == 'A') {
         doneCommandLoop = true;
+      }
+
+      else if(readVal.charAt(0) == DRIVER_CMD_MAGNET) {
+        switchMagnet(atoi(readVal.substring(1,readVal.length()).c_str()));
       }
     } 
 
