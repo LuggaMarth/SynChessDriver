@@ -22,7 +22,7 @@
 #define CHIP_SELECT 53
 #define RST_BUS 5
 
-#define PIN_MAGNET 23
+#define PIN_MAGNET 2
 // **************************
 
 
@@ -46,9 +46,9 @@
 // ********** Commands **********
 #define DRIVER_CMD_READ 'R'
 
-#define READ_ZONE_OUT_WHITE '1'
+#define READ_ZONE_OUT_BLACK '1'
+#define READ_ZONE_OUT_WHITE '3'
 #define READ_ZONE_CENTER '2'
-#define READ_ZONE_OUT_BLACK '3'
 
 #define DRIVER_CMD_AVAILABLE 'A'
 #define DRIVER_CMD_STP 'S'
@@ -140,6 +140,7 @@ void setup() {
 
     // initialize scanner
     chessReader.PCD_Init();
+    chessReader.PCD_DumpVersionToSerial();
 
     // setup motor pins
     pinMode(M1_DIR, OUTPUT);
@@ -181,7 +182,7 @@ void loop() {
         setInitialReaderHeadPositionOutWhite();
       } 
       else if(zone == READ_ZONE_CENTER) {
-        width = 7;
+        width = 8;
         setInitialReaderHeadPositionCenter();
       }
       else if(zone == READ_ZONE_OUT_BLACK) {
@@ -192,7 +193,18 @@ void loop() {
       delay(100);
       
       // read and write
-      Serial.println(startReadingProcess(width, 2));
+      String read = startReadingProcess(width, 8);
+
+      // NORMAL
+      //Serial.println(read);
+
+      // DEBUG
+      for(int i = 0; i < read.length(); i++) {
+        if((i % width+1) == 0 && i != 0) {
+          Serial.println();
+        }  
+        Serial.print(read[i]);
+      }
     }
 
     // if command is step
@@ -462,6 +474,8 @@ void setInitialReaderHeadPositionCenter() {
 */
 void setInitialReaderHeadPositionOutWhite() {
   //home();
+  step(DOWN, 250);
+  step(RIGHT, 3945);
 }
 
 /**
@@ -469,6 +483,8 @@ void setInitialReaderHeadPositionOutWhite() {
 */
 void setInitialReaderHeadPositionOutBlack() {
   //home();
+  step(DOWN, 250);
+  step(RIGHT, 540);
 }
 
 /**
@@ -485,7 +501,7 @@ String startReadingProcess(int width, int height) {
   for(int i = 0; i < height; i++) {
     currentReadRow = "";
 
-    for(int j = 0; j < width; j++) {
+    for(int j = 0; j < width-1; j++) {
       currentReadRow += readRFID();
       step(direction, FULL_FIELD_STEP);
     }
@@ -494,7 +510,9 @@ String startReadingProcess(int width, int height) {
     currentReadRow += readRFID();
 
     // step down
-    step(3, FULL_FIELD_STEP);
+    if(i != height-1) {
+      step(3, FULL_FIELD_STEP);
+    }
     
     // switch direction
     if(direction == RIGHT) {
@@ -564,6 +582,7 @@ char readRFID() {
  * @param state which state should the magnet be put in
  */
 void switchMagnet(int state) {
+  Serial.print(state);
   if(state == 1) {
     digitalWrite(PIN_MAGNET, HIGH);
   } else if(state == 0){
