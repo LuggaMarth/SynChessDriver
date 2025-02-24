@@ -1,18 +1,13 @@
-/*
-* ---------------------------------------
-* Wiring of the Scanner Bus to SCArduino
-* ---------------------------------------
-* rc522 -> 3,3V and GND
-* RST -> Pin 5
-* MOSI -> Pin 
-* MISO -> Pin 
-* SCK -> Pin 
-* SS -> 
-*/
-
+/**
+ * SynChessDriver is the programm to control the electrical chess board
+ * built for the diploma thesis SynChess - Synchronized Chess. It acts as
+ * a serial-connection slave, which accepts commands on the serial line and
+ * controls the stepper motors and the sensors.
+ *
+ * @author Luca Marth (luca.marth@outlook.com)
+ */
 #include <MFRC522.h>
 #include <SPI.h>
-#include <TMC2209.h>
 
 // ********** PINs **********
 #define M1_DIR 8
@@ -39,6 +34,8 @@
 #define RIGHT 1
 #define UP 2
 #define DOWN 3
+
+#define FULL_FIELD_STEP 300
 // ************************************
 
 
@@ -47,10 +44,12 @@
 // *************************************
 
 // ********** Commands **********
-#define DRIVER_CMD_READ_CENTER 'B'
-#define DRIVER_CMD_READ_OUT_WHITE 'W'
-#define DRIVER_CMD_READ_OUT_BLACK 'O'
 #define DRIVER_CMD_READ 'R'
+
+#define READ_ZONE_OUT_WHITE '1'
+#define READ_ZONE_CENTER '2'
+#define READ_ZONE_OUT_BLACK '3'
+
 #define DRIVER_CMD_AVAILABLE 'A'
 #define DRIVER_CMD_STP 'S'
 #define DRIVER_CMD_HOME 'H'
@@ -110,21 +109,24 @@ MFRC522 chessReader(CHIP_SELECT, RST_BUS);
 // ********** Method headers **********
 char mapHexToColorValue(char, char, byte);
 char convertByteInChess(byte*);
-void delayMicrosecondsCustom(unsigned long);
+String reverse(String);
 
-void setDirection(int);
 void step(int, int);
+void setDirection(int);
 void oneStep(int);
 void home();
 
 void setInitialReaderHeadPositionCenter();
-void startReadingProcess(char*, int, int);
+void setInitialReaderHeadPositionOutWhite();
+void setInitialReaderHeadPositionOutBlack();
+void startReadingProcess(String, int, int);
 char readRFID();
 
 void switchMagnet(int);
 // ************************************
 
 
+// ********** Arduino Methods **********
 /**
  * setup(): Setup runs once to set up the components
  */
@@ -145,18 +147,19 @@ void setup() {
     pinMode(M1_STP, OUTPUT);
     pinMode(M2_STP, OUTPUT);
 
-    pinMode(LS_HOME_X, INPUT);
-    pinMode(LS_HOME_Y1, INPUT);
-    pinMode(LS_HOME_Y2, INPUT);
-
-    pinMode(PIN_MAGNET, OUTPUT);
-    digitalWrite(PIN_MAGNET, LOW);
-
     digitalWrite(M1_DIR, LOW);
     digitalWrite(M1_STP, LOW);
     digitalWrite(M2_DIR, LOW);
     digitalWrite(M2_STP, LOW);
 
+    // setup homing pins
+    pinMode(LS_HOME_X, INPUT);
+    pinMode(LS_HOME_Y1, INPUT);
+    pinMode(LS_HOME_Y2, INPUT);
+
+    // setup magnet pins
+    pinMode(PIN_MAGNET, OUTPUT);
+    digitalWrite(PIN_MAGNET, LOW);
 }
 
 /**
@@ -167,10 +170,27 @@ void loop() {
     // format is command;command;
     readVal = Serial.readStringUntil(';');
 
-    // if command is read all
-    if(readVal.charAt(0) == DRIVER_CMD_READ_CENTER) {
-      setInitialReaderHeadPositionCenter();
-      Serial.println(startReadingProcess(7, 2));
+    // if command is read
+    if(readVal.charAt(0) == DRIVER_CMD_READ) {
+      char zone = readVal.charAt(1);
+      int width = 0;
+
+      // set initial reading positions
+      if(zone == READ_ZONE_OUT_WHITE) {
+        width = 2;
+        setInitialReaderHeadPositionOutWhite();
+      } 
+      else if(zone == READ_ZONE_CENTER) {
+        width = 7;
+        setInitialReaderHeadPositionCenter();
+      }
+      else if(zone == READ_ZONE_OUT_BLACK) {
+        width = 2;
+        setInitialReaderHeadPositionOutBlack();
+      }
+      
+      // read and write
+      Serial.println(startReadingProcess(width, 2));
     }
 
     // if command is step
@@ -225,6 +245,7 @@ void loop() {
   // sleep 10ms
   delay(10);
 }
+// *************************************
 
 
 // ********** Utility Methods **********
@@ -311,47 +332,68 @@ char convertByteInChess(byte buffer[]) {
     if(buffer[1] == 0x06) return mapHexToColorValue(WHITE_KOENIG, BLACK_KOENIG, buffer[0]);
 }
 
-void setDirection(int direction) {
-  switch (direction) {
-    case 0: // l
-      digitalWrite(M1_DIR, LOW);
-      digitalWrite(M2_DIR, LOW);
-      break;
-    case 1: // r
-      digitalWrite(M1_DIR, HIGH);
-      digitalWrite(M2_DIR, HIGH);
-      break;
-    case 2: // u
-      digitalWrite(M1_DIR, LOW);
-      digitalWrite(M2_DIR, HIGH);
-      break;
-    case 3: // d
-      digitalWrite(M1_DIR, HIGH);
-      digitalWrite(M2_DIR, LOW);
-      break;
+/**
+ * reverse(): Reverses a given string
+ * @param x string to be reversed
+ * @return reversed string
+ */
+String reverse(String x) {
+  String reversed = "";
+
+  for (int i = x.length() - 1; i >= 0; i--) {
+    reversed += x[i];
   }
-}
 
-void delayMicrosecondsCustom(unsigned long us) {
-    unsigned long start = micros();
-
-    while (micros() - start < us);
+  return reversed;
 }
 // *************************************
 
 
 // ********** Stepper Commands **********
+/**
+ * step(): Moves the Core-XY mechanism by the given steps in the given direction.
+ * @param direction in which direction should the head move
+ * @param steps how many steps the head should move
+ */
 void step(int direction, int steps) {
+  // set the direction
   setDirection(direction);
 
+  // step without accelaration
   for(int i = 0; i < steps; i++) {
     oneStep(DEFAULT_STP_TIME);
   }
 
+  // reset pins
   digitalWrite(M1_DIR, LOW);
   digitalWrite(M1_STP, LOW);
   digitalWrite(M2_DIR, LOW);
   digitalWrite(M2_STP, LOW);
+}
+
+/**
+ * setDirection(): Alternates the direction pins based on parameter.
+ * @param direction which direction should be activated
+ */
+void setDirection(int direction) {
+  switch (direction) {
+    case LEFT:
+      digitalWrite(M1_DIR, LOW);
+      digitalWrite(M2_DIR, LOW);
+      break;
+    case RIGHT:
+      digitalWrite(M1_DIR, HIGH);
+      digitalWrite(M2_DIR, HIGH);
+      break;
+    case UP:
+      digitalWrite(M1_DIR, LOW);
+      digitalWrite(M2_DIR, HIGH);
+      break;
+    case DOWN: 
+      digitalWrite(M1_DIR, HIGH);
+      digitalWrite(M2_DIR, LOW);
+      break;
+  }
 }
 
 /**
@@ -370,6 +412,9 @@ void oneStep(int speed) {
   }
 }
 
+/**
+ * home(): Moves the head to the position (0 0)
+*/
 void home() {
   // move x
   digitalWrite(M1_DIR, LOW);
@@ -391,6 +436,9 @@ void home() {
 
 
 // ********** Sensor Commands **********
+/**
+ * setInitialReaderHeadPositionCenter(): Homes the head and moves it to the first field.
+*/
 void setInitialReaderHeadPositionCenter() {
   //home();
   // step down 250
@@ -402,38 +450,56 @@ void setInitialReaderHeadPositionCenter() {
   delay(100);
 }
 
+/**
+ * setInitialReaderHeadPositionOutWhite(): Homes the head and moves it to the first field.
+*/
 void setInitialReaderHeadPositionOutWhite() {
   //home();
 }
 
+/**
+ * setInitialReaderHeadPositionOutBlack(): Homes the head and moves it to the first field.
+*/
 void setInitialReaderHeadPositionOutBlack() {
   //home();
 }
 
+/**
+ * startReadingProcess(): Alternates the direction pins based on parameter.
+ * @param width width of the field to be scanned
+ * @param height height of the field to be scanned
+ * @return scanned board
+ */
 String startReadingProcess(int width, int height) {
   String out = "";
+  String currentReadRow;
+
   int direction = RIGHT;
 
   for(int i = 0; i < height; i++) {
+    currentReadRow = "";
+
     for(int j = 0; j < width; j++) {
-      out += readRFID();
-      step(direction, 300);
-      Serial.print("Done:");
-      Serial.println(j);
+      currentReadRow += readRFID();
+      step(direction, FULL_FIELD_STEP);
     }
 
     // read the last one
-    out += readRFID();
+    currentReadRow += readRFID();
 
     // step down
-    step(3, 300);
+    step(3, FULL_FIELD_STEP);
     
     // switch direction
     if(direction == RIGHT) {
       direction = LEFT;
     } else {
+      currentReadRow = reverse(currentReadRow);
       direction = RIGHT;
     }
+
+    // append string
+    out += currentReadRow;
   }
 
   
@@ -485,6 +551,10 @@ char readRFID() {
 
 
 // ********** Magnet Commands **********
+/**
+ * switchMagnet(): Switches the magnet on or off based on the parameter
+ * @param state which state should the magnet be put in
+ */
 void switchMagnet(int state) {
   if(state == 1) {
     digitalWrite(PIN_MAGNET, HIGH);
