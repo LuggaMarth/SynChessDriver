@@ -2,25 +2,65 @@
 * ---------------------------------------
 * Wiring of the Scanner Bus to SCArduino
 * ---------------------------------------
-* pcf -> 5V and GND
 * rc522 -> 3,3V and GND
-* RST -> Pin 9
-* MOSI -> Pin 11
-* MISO -> Pin 12
-* SCK -> Pin 13
-* 
-* X: 4325
-*
+* RST -> Pin 5
+* MOSI -> Pin 
+* MISO -> Pin 
+* SCK -> Pin 
+* SS -> 
 */
 
-#include "Arduino.h"
-#include <SPI.h>
 #include <MFRC522.h>
+#include <SPI.h>
+#include <TMC2209.h>
 
-// NFC reader stuff
+// ********** PINs **********
+#define M1_DIR 8
+#define M1_STP 9
+#define M2_DIR 10
+#define M2_STP 11
+
+#define LS_HOME_X 23
+#define LS_HOME_Y1 24
+#define LS_HOME_Y2 25
+
+#define CHIP_SELECT 53
+#define RST_BUS 5
+
+#define PIN_MAGNET 23
+// **************************
+
+
+// ********** Motor Settings **********
+#define DEFAULT_STP_TIME 100
+#define MICROSTEPS 8
+
+#define LEFT 0
+#define RIGHT 1
+#define UP 2
+#define DOWN 3
+// ************************************
+
+
+// ********** Sensor Settings **********
 #define BLOCK 4
+// *************************************
 
-// chess figure defines
+// ********** Commands **********
+#define DRIVER_CMD_READ_CENTER 'B'
+#define DRIVER_CMD_READ_OUT_WHITE 'W'
+#define DRIVER_CMD_READ_OUT_BLACK 'O'
+#define DRIVER_CMD_READ 'R'
+#define DRIVER_CMD_AVAILABLE 'A'
+#define DRIVER_CMD_STP 'S'
+#define DRIVER_CMD_HOME 'H'
+#define DRIVER_CMD_MAGNET 'M'
+
+#define DRIVER_STATUS_OK 'X'
+// ******************************
+
+
+// ********** Fields **********
 #define WHITE_BAUER_1 '1'
 #define WHITE_BAUER_2 '2'
 #define WHITE_BAUER_3 '3'
@@ -56,39 +96,138 @@
 #define BLACK_KOENIG 'W'
 
 #define EMPTY_FIELD '0'
+// ****************************
 
-#define DRIVER_CMD_READ_CENTER 'B'
-#define DRIVER_CMD_READ_OUT_WHITE 'W'
-#define DRIVER_CMD_READ_OUT_BLACK 'O'
-#define DRIVER_CMD_READ 'R'
-#define DRIVER_CMD_AVAILABLE 'A'
-#define DRIVER_CMD_STP 'S'
-#define DRIVER_CMD_HOME 'H'
-#define DRIVER_STATUS_OK 'X'
-#define DRIVER_CMD_MAGNET 'M'
 
-// ****** Pin mappings ******
-#define M1_DIR 2
-#define M1_STP 3
-#define M2_DIR 4
-#define M2_STP 5
-
-#define LS_HOME_X 6
-#define LS_HOME_Y1 7
-#define LS_HOME_Y2 8
-
-#define CHIP_SELECT 10
-#define RST_BUS 9
-
-#define PIN_MAGNET 22
-
-// ****** Motor Settings ******
-#define DEFAULT_STP_TIME 100
-#define MICROSTEPS 8
-
-MFRC522 chessReader(RST_BUS, CHIP_SELECT);
+// ********** Variables **********
+String readVal;
 bool doneCommandLoop = false;
 
+MFRC522 chessReader(CHIP_SELECT, RST_BUS);
+// *******************************
+
+
+// ********** Method headers **********
+char mapHexToColorValue(char, char, byte);
+char convertByteInChess(byte*);
+void delayMicrosecondsCustom(unsigned long);
+
+void setDirection(int);
+void step(int, int);
+void oneStep(int);
+void home();
+
+void setInitialReaderHeadPositionCenter();
+void startReadingProcess(char*, int, int);
+char readRFID();
+
+void switchMagnet(int);
+// ************************************
+
+
+/**
+ * setup(): Setup runs once to set up the components
+ */
+void setup() {
+    // open serial and wait til opened
+    Serial.begin(9600);
+    while(!Serial) {  }
+
+    // init spi
+    SPI.begin();
+
+    // initialize scanner
+    chessReader.PCD_Init();
+
+    // setup motor pins
+    pinMode(M1_DIR, OUTPUT);
+    pinMode(M2_DIR, OUTPUT);
+    pinMode(M1_STP, OUTPUT);
+    pinMode(M2_STP, OUTPUT);
+
+    pinMode(LS_HOME_X, INPUT);
+    pinMode(LS_HOME_Y1, INPUT);
+    pinMode(LS_HOME_Y2, INPUT);
+
+    pinMode(PIN_MAGNET, OUTPUT);
+    digitalWrite(PIN_MAGNET, LOW);
+
+    digitalWrite(M1_DIR, LOW);
+    digitalWrite(M1_STP, LOW);
+    digitalWrite(M2_DIR, LOW);
+    digitalWrite(M2_STP, LOW);
+
+}
+
+/**
+ * loop(): Runs every 10ms to control the program flow.
+ */
+void loop() {
+  if(Serial.available() > 0) {
+    // format is command;command;
+    readVal = Serial.readStringUntil(';');
+
+    // if command is read all
+    if(readVal.charAt(0) == DRIVER_CMD_READ_CENTER) {
+      setInitialReaderHeadPositionCenter();
+      Serial.println(startReadingProcess(7, 2));
+    }
+
+    // if command is step
+    else if(readVal.charAt(0) == DRIVER_CMD_STP) {
+      int steps = atoi(readVal.substring(2, readVal.length()).c_str());
+      int direction;
+
+      switch (readVal.charAt(1)) {
+        case 'L':
+        case 'l':
+          direction = 0;
+          break;
+        case 'R': // r
+        case 'r':
+          direction = 1;
+          break;
+        case 'U': // u
+        case 'u':
+          direction = 2;
+          break;
+        case 'D': // d
+        case 'd':
+          direction = 3;
+          break;
+      }
+
+      step(direction, steps);
+      doneCommandLoop = true;
+    }
+
+    // if command is home
+    else if(readVal.charAt(0) == DRIVER_CMD_HOME) {
+      home();
+      doneCommandLoop = true;
+    }
+
+    // if command is are you still there
+    else if(readVal.charAt(0) == 'A') {
+      doneCommandLoop = true;
+    }
+
+    else if(readVal.charAt(0) == DRIVER_CMD_MAGNET) {
+      switchMagnet(atoi(readVal.substring(1,readVal.length()).c_str()));
+    }
+  } 
+
+  else if(doneCommandLoop) {
+    doneCommandLoop = false;
+    Serial.println(DRIVER_STATUS_OK);
+  }
+
+  // sleep 10ms
+  delay(10);
+}
+
+
+// ********** Utility Methods **********
 /**
  * mapHexToColorValue(): Takes two color inputs and outputs the corresponding value to the color hex.
  * @param whiteValue White value to be outputted
@@ -101,47 +240,6 @@ char mapHexToColorValue(char whiteValue, char blackValue, byte colorHex) {
         return whiteValue;
     } else if(colorHex == 0xB0) {
         return blackValue;
-    } else {
-        return EMPTY_FIELD;
-    }
-}
-
-/**
- * readRFID(): Reads the given RFID - Sensor and returns the converted contents
- * from block 4 
- * @param mfrc522 Sensor instance
- * @return char code
- */
-char readRFID() {
-    // Look for a card
-    if (chessReader.PICC_IsNewCardPresent()) {
-        // Authentificate for block with key A (default key)
-        MFRC522::MIFARE_Key key;
-        for (byte i = 0; i < 6; i++) {
-            key.keyByte[i] = 0xFF;
-        }
-
-        // buffer to read the data
-        byte buffer[18];
-        byte size = sizeof(buffer);
-
-        // Authenticate the block 4 (if not ok, return)
-        MFRC522::StatusCode status = chessReader.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, BLOCK, &key, &(chessReader.uid));
-        if (status != MFRC522::STATUS_OK) {
-            return EMPTY_FIELD;
-        }
-        // Read data from block 4
-        status = chessReader.MIFARE_Read(BLOCK, buffer, &size);
-        if (status != MFRC522::STATUS_OK) {
-            return EMPTY_FIELD;
-        }
-
-        // Stop encryption on the PICC
-        chessReader.PICC_HaltA();
-        chessReader.PCD_StopCrypto1();
-
-        // return
-        return convertByteInChess(buffer);
     } else {
         return EMPTY_FIELD;
     }
@@ -213,52 +311,41 @@ char convertByteInChess(byte buffer[]) {
     if(buffer[1] == 0x06) return mapHexToColorValue(WHITE_KOENIG, BLACK_KOENIG, buffer[0]);
 }
 
-/**
- * stepCommand(): Executes the given step command
- * @param command Command to execute
-*/ 
-void stepCommand(String command) {
-  char direction = command.charAt(0);
-  int steps = atoi(command.substring(1, command.length()).c_str());
-
-  // direction switch
+void setDirection(int direction) {
   switch (direction) {
-    case 'L':
+    case 0: // l
       digitalWrite(M1_DIR, LOW);
       digitalWrite(M2_DIR, LOW);
       break;
-    case 'R':
+    case 1: // r
       digitalWrite(M1_DIR, HIGH);
       digitalWrite(M2_DIR, HIGH);
       break;
-    case 'U':
+    case 2: // u
       digitalWrite(M1_DIR, LOW);
       digitalWrite(M2_DIR, HIGH);
       break;
-    case 'D':
+    case 3: // d
       digitalWrite(M1_DIR, HIGH);
       digitalWrite(M2_DIR, LOW);
       break;
   }
+}
 
-  int share = steps/9;
-  int perStep = 400/share;
-  int curr = DEFAULT_STP_TIME;
+void delayMicrosecondsCustom(unsigned long us) {
+    unsigned long start = micros();
 
-  // step normal until the last nineth
-  for(int i = 0; i < steps-share; i++) {
-    for(int j = 0; j < MICROSTEPS; j++) {
-      oneStep(DEFAULT_STP_TIME);
-    }
-  }
-  
-  // deccelerate
-  for(int i = steps - share; i < steps; i++) {
-    curr += perStep;
+    while (micros() - start < us);
+}
+// *************************************
 
-    for(int j = 0; j < MICROSTEPS; j++) {
-      oneStep(curr);
-    }
+
+// ********** Stepper Commands **********
+void step(int direction, int steps) {
+  setDirection(direction);
+
+  for(int i = 0; i < steps; i++) {
+    oneStep(DEFAULT_STP_TIME);
   }
 
   digitalWrite(M1_DIR, LOW);
@@ -273,17 +360,16 @@ void stepCommand(String command) {
  * @param speed time of the rectangular signal
 */
 void oneStep(int speed) {
-  digitalWrite(M1_STP, HIGH);
-  digitalWrite(M2_STP, HIGH);
-  delayMicroseconds(speed);
-  digitalWrite(M1_STP, LOW);
-  digitalWrite(M2_STP, LOW);
-  delayMicroseconds(speed);
+  for(int i = 0; i < MICROSTEPS; i++) {
+    digitalWrite(M1_STP, HIGH);
+    digitalWrite(M2_STP, HIGH);
+    delayMicroseconds(speed); // Delay based on current speed
+    digitalWrite(M1_STP, LOW);
+    digitalWrite(M2_STP, LOW);
+    delayMicroseconds(speed); // Delay based on current speed
+  }
 }
 
-/**
- * home(): Moves the Core - XY to (0 0)
-*/
 void home() {
   // move x
   digitalWrite(M1_DIR, LOW);
@@ -301,10 +387,104 @@ void home() {
     oneStep(DEFAULT_STP_TIME);
   }
 }
+// **************************************
+
+
+// ********** Sensor Commands **********
+void setInitialReaderHeadPositionCenter() {
+  //home();
+  // step down 250
+  step(DOWN, 250);
+
+  // step right 1345
+  step(RIGHT, 1345);
+
+  delay(100);
+}
+
+void setInitialReaderHeadPositionOutWhite() {
+  //home();
+}
+
+void setInitialReaderHeadPositionOutBlack() {
+  //home();
+}
+
+String startReadingProcess(int width, int height) {
+  String out = "";
+  int direction = RIGHT;
+
+  for(int i = 0; i < height; i++) {
+    for(int j = 0; j < width; j++) {
+      out += readRFID();
+      step(direction, 300);
+      Serial.print("Done:");
+      Serial.println(j);
+    }
+
+    // read the last one
+    out += readRFID();
+
+    // step down
+    step(3, 300);
+    
+    // switch direction
+    if(direction == RIGHT) {
+      direction = LEFT;
+    } else {
+      direction = RIGHT;
+    }
+  }
+
+  
+  return out;
+}
 
 /**
- * switchMagnet(): Switches the magnet on and off
-*/
+ * readRFID(): Reads the given RFID - Sensor and returns the converted contents
+ * from block 4 
+ * @param mfrc522 Sensor instance
+ * @return char code
+ */
+char readRFID() {
+    // Look for a card
+    if (chessReader.PICC_IsNewCardPresent() && chessReader.PICC_ReadCardSerial()) {
+
+        // Authentificate for block with key A (default key)
+        MFRC522::MIFARE_Key key;
+        for (byte i = 0; i < 6; i++) {
+            key.keyByte[i] = 0xFF;
+        }
+
+        // buffer to read the data
+        byte buffer[18];
+        byte size = sizeof(buffer);
+
+        // Authenticate the block 4 (if not ok, return)
+        MFRC522::StatusCode status = chessReader.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, BLOCK, &key, &(chessReader.uid));
+        if (status != MFRC522::STATUS_OK) {
+            return EMPTY_FIELD;
+        }
+        // Read data from block 4
+        status = chessReader.MIFARE_Read(BLOCK, buffer, &size);
+        if (status != MFRC522::STATUS_OK) {
+            return EMPTY_FIELD;
+        }
+
+        // Stop encryption on the PICC
+        chessReader.PICC_HaltA();
+        chessReader.PCD_StopCrypto1();
+
+        // return
+        return convertByteInChess(buffer);
+    } else {
+        return EMPTY_FIELD;
+    }
+}
+// *************************************
+
+
+// ********** Magnet Commands **********
 void switchMagnet(int state) {
   if(state == 1) {
     digitalWrite(PIN_MAGNET, HIGH);
@@ -312,84 +492,4 @@ void switchMagnet(int state) {
     digitalWrite(PIN_MAGNET, LOW);
   }
 }
-
-/**
- * setup(): Setup runs once to set up the components
- */
-void setup() {
-    // open serial and wait til opened
-    Serial.begin(9600);
-    while(!Serial) {  }
-
-    // init spi
-    SPI.begin();
-
-    // initialize scanner
-    chessReader.PCD_Init();
-
-    // // setup motor pins
-    pinMode(M1_DIR, OUTPUT);
-    pinMode(M2_DIR, OUTPUT);
-    pinMode(M1_STP, OUTPUT);
-    pinMode(M2_STP, OUTPUT);
-
-    pinMode(LS_HOME_X, INPUT);
-    pinMode(LS_HOME_Y1, INPUT);
-    pinMode(LS_HOME_Y2, INPUT);
-
-    pinMode(PIN_MAGNET, OUTPUT);
-    digitalWrite(PIN_MAGNET, LOW);
-
-    digitalWrite(M1_DIR, LOW);
-    digitalWrite(M1_STP, LOW);
-    digitalWrite(M2_DIR, LOW);
-    digitalWrite(M2_STP, LOW);
-}
-
-/**
- * loop(): Runs every 10ms to control the program flow.
- */
-void loop() {
-    String readVal;
-
-    if(Serial.available() > 0) {
-      // format is command;command;
-      readVal = Serial.readStringUntil(';');
-
-      // if command is read all
-      if(readVal.charAt(0) == DRIVER_CMD_READ_CENTER) {
-        char scan[128];
-
-        Serial.println(scan);
-      }
-
-      // if command is step
-      else if(readVal.charAt(0) == DRIVER_CMD_STP) {
-        stepCommand(readVal.substring(1,readVal.length()));
-        doneCommandLoop = true;
-      }
-
-      // if command is home
-      else if(readVal.charAt(0) == DRIVER_CMD_HOME) {
-        home();
-        doneCommandLoop = true;
-      }
-
-      // if command is are you still there
-      else if(readVal.charAt(0) == 'A') {
-        doneCommandLoop = true;
-      }
-
-      else if(readVal.charAt(0) == DRIVER_CMD_MAGNET) {
-        switchMagnet(atoi(readVal.substring(1,readVal.length()).c_str()));
-      }
-    } 
-
-    else if(doneCommandLoop) {
-      doneCommandLoop = false;
-      Serial.println(DRIVER_STATUS_OK);
-    }
-
-    // sleep 10ms
-    delay(10);
-}
+// *************************************
