@@ -188,6 +188,8 @@ void loop() {
         width = 2;
         setInitialReaderHeadPositionOutBlack();
       }
+
+      delay(100);
       
       // read and write
       Serial.println(startReadingProcess(width, 2));
@@ -257,13 +259,20 @@ void loop() {
  * @return Corresponding value
  */
 char mapHexToColorValue(char whiteValue, char blackValue, byte colorHex) {
-    if(colorHex == 0xA0) {
-        return whiteValue;
-    } else if(colorHex == 0xB0) {
-        return blackValue;
-    } else {
-        return EMPTY_FIELD;
-    }
+  // if color is white
+  if(colorHex == 0xA0) {
+      return whiteValue;
+  } 
+  
+  // if color is black
+  else if(colorHex == 0xB0) {
+      return blackValue;
+  } 
+  
+  // if color does not match any, then invalid figure
+  else {
+      return EMPTY_FIELD;
+  }
 }
 
 /**
@@ -277,7 +286,7 @@ char convertByteInChess(byte buffer[]) {
         return EMPTY_FIELD;
     }
 
-    // bauern
+    // pawn
     if(buffer[1] == 0x01) {
         switch(buffer[2]) {
             case 0x01:
@@ -307,7 +316,7 @@ char convertByteInChess(byte buffer[]) {
         }
     }
 
-    // turm
+    // rook
     if(buffer[1] == 0x02) {
         if(buffer[2] == 0x01) return mapHexToColorValue(WHITE_TURM_L, BLACK_TURM_L, buffer[0]);
         else return mapHexToColorValue(WHITE_TURM_R, BLACK_TURM_R, buffer[0]);;
@@ -405,10 +414,11 @@ void oneStep(int speed) {
   for(int i = 0; i < MICROSTEPS; i++) {
     digitalWrite(M1_STP, HIGH);
     digitalWrite(M2_STP, HIGH);
-    delayMicroseconds(speed); // Delay based on current speed
+    delayMicroseconds(speed);
+
     digitalWrite(M1_STP, LOW);
     digitalWrite(M2_STP, LOW);
-    delayMicroseconds(speed); // Delay based on current speed
+    delayMicroseconds(speed);
   }
 }
 
@@ -420,6 +430,7 @@ void home() {
   digitalWrite(M1_DIR, LOW);
   digitalWrite(M2_DIR, LOW);
 
+  // test at each step whether ls is activated
   while(digitalRead(LS_HOME_X) != HIGH) {
     oneStep(DEFAULT_STP_TIME);
   }
@@ -428,6 +439,7 @@ void home() {
   digitalWrite(M1_DIR, LOW);
   digitalWrite(M2_DIR, HIGH);
 
+  // test at each step whether ls is activated
   while(digitalRead(LS_HOME_Y1) != HIGH && digitalRead(LS_HOME_Y2) != HIGH) {
     oneStep(DEFAULT_STP_TIME);
   }
@@ -441,13 +453,8 @@ void home() {
 */
 void setInitialReaderHeadPositionCenter() {
   //home();
-  // step down 250
   step(DOWN, 250);
-
-  // step right 1345
   step(RIGHT, 1345);
-
-  delay(100);
 }
 
 /**
@@ -473,7 +480,6 @@ void setInitialReaderHeadPositionOutBlack() {
 String startReadingProcess(int width, int height) {
   String out = "";
   String currentReadRow;
-
   int direction = RIGHT;
 
   for(int i = 0; i < height; i++) {
@@ -502,7 +508,6 @@ String startReadingProcess(int width, int height) {
     out += currentReadRow;
   }
 
-  
   return out;
 }
 
@@ -515,8 +520,7 @@ String startReadingProcess(int width, int height) {
 char readRFID() {
     // Look for a card
     if (chessReader.PICC_IsNewCardPresent() && chessReader.PICC_ReadCardSerial()) {
-
-        // Authentificate for block with key A (default key)
+        // Authentificate for block with key A
         MFRC522::MIFARE_Key key;
         for (byte i = 0; i < 6; i++) {
             key.keyByte[i] = 0xFF;
@@ -526,24 +530,28 @@ char readRFID() {
         byte buffer[18];
         byte size = sizeof(buffer);
 
-        // Authenticate the block 4 (if not ok, return)
+        // Authenticate the block 4 (if not ok, return empty field)
         MFRC522::StatusCode status = chessReader.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, BLOCK, &key, &(chessReader.uid));
         if (status != MFRC522::STATUS_OK) {
             return EMPTY_FIELD;
         }
+
         // Read data from block 4
         status = chessReader.MIFARE_Read(BLOCK, buffer, &size);
         if (status != MFRC522::STATUS_OK) {
             return EMPTY_FIELD;
         }
 
-        // Stop encryption on the PICC
+        // stop sending data
         chessReader.PICC_HaltA();
         chessReader.PCD_StopCrypto1();
 
         // return
         return convertByteInChess(buffer);
-    } else {
+    } 
+    
+    // if no card found or card cannot be read
+    else {
         return EMPTY_FIELD;
     }
 }
