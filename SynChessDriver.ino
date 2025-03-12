@@ -8,16 +8,13 @@
  */
 #include <MFRC522.h>
 #include <SPI.h>
+#include <SoftHome.h>
 
 // ********** PINs **********
 #define M1_DIR 8
 #define M1_STP 9
 #define M2_DIR 10
 #define M2_STP 11
-
-#define LS_HOME_X 23
-#define LS_HOME_Y1 24
-#define LS_HOME_Y2 25
 
 #define CHIP_SELECT 53
 #define RST_BUS 5
@@ -54,6 +51,7 @@
 #define DRIVER_CMD_STP 'S'
 #define DRIVER_CMD_HOME 'H'
 #define DRIVER_CMD_MAGNET 'M'
+#define DRIVER_CMD_DELAY 'W'
 
 #define DRIVER_STATUS_OK 'X'
 // ******************************
@@ -98,11 +96,16 @@
 // ****************************
 
 
+// ********** Tables **********
+int widthToZoneMapping[] = {2, 8, 2}; // Zone 1, 2, 3
+// ****************************
+
 // ********** Variables **********
 String readVal;
 bool doneCommandLoop = false;
 
 MFRC522 chessReader(CHIP_SELECT, RST_BUS);
+SoftHome homeTracker(0,0);
 // *******************************
 
 
@@ -153,11 +156,6 @@ void setup() {
     digitalWrite(M2_DIR, LOW);
     digitalWrite(M2_STP, LOW);
 
-    // setup homing pins
-    pinMode(LS_HOME_X, INPUT);
-    pinMode(LS_HOME_Y1, INPUT);
-    pinMode(LS_HOME_Y2, INPUT);
-
     // setup magnet pins
     pinMode(PIN_MAGNET, OUTPUT);
     digitalWrite(PIN_MAGNET, LOW);
@@ -173,8 +171,8 @@ void loop() {
 
     // if command is read
     if(readVal.charAt(0) == DRIVER_CMD_READ) {
-      char zone = readVal.charAt(1);
-      int width = 0;
+      char zone = atoi(readVal.charAt(1)) - 1;
+      int width = widthToZoneMapping[zone];
 
       // set initial reading positions
       if(zone == READ_ZONE_OUT_WHITE) {
@@ -194,21 +192,12 @@ void loop() {
       
       // read and write
       String read = startReadingProcess(width, 8);
-
-      // NORMAL
-      //Serial.println(read);
-
-      // DEBUG
-      for(int i = 0; i < read.length(); i++) {
-        if((i % width+1) == 0 && i != 0) {
-          Serial.println();
-        }  
-        Serial.print(read[i]);
-      }
+      doneCommandLoop = false;
+      Serial.println(read);
     }
 
     // if command is step
-    else if(readVal.charAt(0) == DRIVER_CMD_STP) {
+    else if(readVal.charAt(0) == DRIVER_CMD_STP && readVal.length() > 1) {
       int steps = atoi(readVal.substring(2, readVal.length()).c_str());
       int direction;
 
@@ -247,7 +236,13 @@ void loop() {
     }
 
     else if(readVal.charAt(0) == DRIVER_CMD_MAGNET) {
-      switchMagnet(atoi(readVal.substring(1,readVal.length()).c_str()));
+      switchMagnet(atoi(readVal.substring(1, 2).c_str()));
+      doneCommandLoop = true;
+    }
+
+    else if(readVal.charAt(0) == DRIVER_CMD_DELAY) {
+      delay(atoi(readVal.substring(1,readVal.length()).c_str()));
+      doneCommandLoop = false;
     }
   } 
 
@@ -385,6 +380,22 @@ void step(int direction, int steps) {
     oneStep(DEFAULT_STP_TIME);
   }
 
+  // send to tracker
+  switch(direction) {
+    case LEFT:
+      homeTracker.setPositionXRelative(-steps);
+      break;
+    case RIGHT:
+      homeTracker.setPositionXRelative(steps);
+      break;
+    case UP:
+      homeTracker.setPositionYRelative(-steps);
+      break;
+    case DOWN:
+      homeTracker.setPositionYRelative(steps);
+      break;
+  }
+
   // reset pins
   digitalWrite(M1_DIR, LOW);
   digitalWrite(M1_STP, LOW);
@@ -438,23 +449,11 @@ void oneStep(int speed) {
  * home(): Moves the head to the position (0 0)
 */
 void home() {
-  // move x
-  digitalWrite(M1_DIR, LOW);
-  digitalWrite(M2_DIR, LOW);
+  if(homeTracker.isHome()) return;
 
-  // test at each step whether ls is activated
-  while(digitalRead(LS_HOME_X) != HIGH) {
-    oneStep(DEFAULT_STP_TIME);
-  }
-
-  // move y
-  digitalWrite(M1_DIR, LOW);
-  digitalWrite(M2_DIR, HIGH);
-
-  // test at each step whether ls is activated
-  while(digitalRead(LS_HOME_Y1) != HIGH && digitalRead(LS_HOME_Y2) != HIGH) {
-    oneStep(DEFAULT_STP_TIME);
-  }
+  step(UP, homeTracker.getY());
+  step(LEFT, homeTracker.getX() + 10);
+  homeTracker.home();
 }
 // **************************************
 
@@ -464,7 +463,10 @@ void home() {
  * setInitialReaderHeadPositionCenter(): Homes the head and moves it to the first field.
 */
 void setInitialReaderHeadPositionCenter() {
-  //home();
+  home();
+
+  delay(100);
+
   step(DOWN, 250);
   step(RIGHT, 1345);
 }
@@ -473,7 +475,10 @@ void setInitialReaderHeadPositionCenter() {
  * setInitialReaderHeadPositionOutWhite(): Homes the head and moves it to the first field.
 */
 void setInitialReaderHeadPositionOutWhite() {
-  //home();
+  home();
+
+  delay(100);
+
   step(DOWN, 250);
   step(RIGHT, 3945);
 }
@@ -482,7 +487,10 @@ void setInitialReaderHeadPositionOutWhite() {
  * setInitialReaderHeadPositionOutBlack(): Homes the head and moves it to the first field.
 */
 void setInitialReaderHeadPositionOutBlack() {
-  //home();
+  home();
+
+  delay(100);
+
   step(DOWN, 250);
   step(RIGHT, 540);
 }
@@ -582,7 +590,8 @@ char readRFID() {
  * @param state which state should the magnet be put in
  */
 void switchMagnet(int state) {
-  Serial.print(state);
+  if(state != 0 && state != 1) return;
+  
   if(state == 1) {
     digitalWrite(PIN_MAGNET, HIGH);
   } else if(state == 0){
