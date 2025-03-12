@@ -40,12 +40,9 @@
 #define BLOCK 4
 // *************************************
 
+
 // ********** Commands **********
 #define DRIVER_CMD_READ 'R'
-
-#define READ_ZONE_OUT_BLACK '1'
-#define READ_ZONE_OUT_WHITE '3'
-#define READ_ZONE_CENTER '2'
 
 #define DRIVER_CMD_AVAILABLE 'A'
 #define DRIVER_CMD_STP 'S'
@@ -112,6 +109,7 @@ int tbl_DirectionToPinState[4][2] = {
   {HIGH, LOW}
 };
 // ****************************
+
 
 // ********** Variables **********
 String readVal;
@@ -215,7 +213,7 @@ void loop() {
     }
 
     // if command is are you still there
-    else if(readVal.charAt(0) == 'A') {
+    else if(readVal.charAt(0) == DRIVER_CMD_AVAILABLE) {
       doneCommandLoop = true;
     }
 
