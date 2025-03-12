@@ -97,7 +97,20 @@
 
 
 // ********** Tables **********
-int widthToZoneMapping[] = {2, 8, 2}; // Zone 1, 2, 3
+// Zone 1, 2, 3
+int tbl_WidthToZone[] = {2, 8, 2}; 
+int tbl_ZoneToInitialPosition[] = {540, 1345, 3945};
+
+// -1 if direction is not valid (D, e, f, g, h, i, j, k, L, m, n, o, p, q, R, s, t, U)
+int tbl_CharDirectionToInt[] = {3, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 1, -1, -1, 2};
+
+// pin mappings
+int tbl_DirectionToPinState[4][2] = {
+  {LOW, LOW},
+  {HIGH, HIGH},
+  {LOW, HIGH},
+  {HIGH, LOW}
+};
 // ****************************
 
 // ********** Variables **********
@@ -119,9 +132,7 @@ void setDirection(int);
 void oneStep(int);
 void home();
 
-void setInitialReaderHeadPositionCenter();
-void setInitialReaderHeadPositionOutWhite();
-void setInitialReaderHeadPositionOutBlack();
+void setInitialReaderHeadPosition(int );
 void startReadingProcess(String, int, int);
 char readRFID();
 
@@ -172,21 +183,9 @@ void loop() {
     // if command is read
     if(readVal.charAt(0) == DRIVER_CMD_READ) {
       char zone = atoi(readVal.charAt(1)) - 1;
-      int width = widthToZoneMapping[zone];
+      int width = tbl_WidthToZone[zone];
 
-      // set initial reading positions
-      if(zone == READ_ZONE_OUT_WHITE) {
-        width = 2;
-        setInitialReaderHeadPositionOutWhite();
-      } 
-      else if(zone == READ_ZONE_CENTER) {
-        width = 8;
-        setInitialReaderHeadPositionCenter();
-      }
-      else if(zone == READ_ZONE_OUT_BLACK) {
-        width = 2;
-        setInitialReaderHeadPositionOutBlack();
-      }
+      setInitialReaderHeadPosition(zone);
 
       delay(100);
       
@@ -199,26 +198,11 @@ void loop() {
     // if command is step
     else if(readVal.charAt(0) == DRIVER_CMD_STP && readVal.length() > 1) {
       int steps = atoi(readVal.substring(2, readVal.length()).c_str());
-      int direction;
 
-      switch (readVal.charAt(1)) {
-        case 'L':
-        case 'l':
-          direction = 0;
-          break;
-        case 'R': // r
-        case 'r':
-          direction = 1;
-          break;
-        case 'U': // u
-        case 'u':
-          direction = 2;
-          break;
-        case 'D': // d
-        case 'd':
-          direction = 3;
-          break;
-      }
+      readVal.toLowerCase();
+      int directionCode = atoi(readVal.charAt(1)) - 'd';
+
+      int direction = tbl_CharDirectionToInt[directionCode];
 
       step(direction, steps);
       doneCommandLoop = true;
@@ -408,24 +392,8 @@ void step(int direction, int steps) {
  * @param direction which direction should be activated
  */
 void setDirection(int direction) {
-  switch (direction) {
-    case LEFT:
-      digitalWrite(M1_DIR, LOW);
-      digitalWrite(M2_DIR, LOW);
-      break;
-    case RIGHT:
-      digitalWrite(M1_DIR, HIGH);
-      digitalWrite(M2_DIR, HIGH);
-      break;
-    case UP:
-      digitalWrite(M1_DIR, LOW);
-      digitalWrite(M2_DIR, HIGH);
-      break;
-    case DOWN: 
-      digitalWrite(M1_DIR, HIGH);
-      digitalWrite(M2_DIR, LOW);
-      break;
-  }
+  digitalWrite(M1_DIR, tbl_DirectionToPinState[direction][0]);
+  digitalWrite(M2_DIR, tbl_DirectionToPinState[direction][1]);
 }
 
 /**
@@ -460,39 +428,15 @@ void home() {
 
 // ********** Sensor Commands **********
 /**
- * setInitialReaderHeadPositionCenter(): Homes the head and moves it to the first field.
+ * setInitialReaderHeadPosition(): Homes the head and moves it to the first field.
 */
-void setInitialReaderHeadPositionCenter() {
+void setInitialReaderHeadPosition(int zone) {
   home();
 
   delay(100);
 
   step(DOWN, 250);
-  step(RIGHT, 1345);
-}
-
-/**
- * setInitialReaderHeadPositionOutWhite(): Homes the head and moves it to the first field.
-*/
-void setInitialReaderHeadPositionOutWhite() {
-  home();
-
-  delay(100);
-
-  step(DOWN, 250);
-  step(RIGHT, 3945);
-}
-
-/**
- * setInitialReaderHeadPositionOutBlack(): Homes the head and moves it to the first field.
-*/
-void setInitialReaderHeadPositionOutBlack() {
-  home();
-
-  delay(100);
-
-  step(DOWN, 250);
-  step(RIGHT, 540);
+  step(RIGHT, tbl_ZoneToInitialPosition[zone]);
 }
 
 /**
@@ -592,10 +536,6 @@ char readRFID() {
 void switchMagnet(int state) {
   if(state != 0 && state != 1) return;
   
-  if(state == 1) {
-    digitalWrite(PIN_MAGNET, HIGH);
-  } else if(state == 0){
-    digitalWrite(PIN_MAGNET, LOW);
-  }
+  digitalWrite(PIN_MAGNET, 1);
 }
 // *************************************
