@@ -180,10 +180,10 @@ void loop() {
 
     // if command is read
     if(readVal.charAt(0) == DRIVER_CMD_READ) {
-      char zone = atoi(readVal.charAt(1)) - 1;
-      int width = tbl_WidthToZone[zone];
+      int zone = readVal.charAt(1) - '0';
+      int width = tbl_WidthToZone[zone-1];
 
-      setInitialReaderHeadPosition(zone);
+      setInitialReaderHeadPosition(zone-1);
 
       delay(100);
       
@@ -198,8 +198,7 @@ void loop() {
       int steps = atoi(readVal.substring(2, readVal.length()).c_str());
 
       readVal.toLowerCase();
-      int directionCode = atoi(readVal.charAt(1)) - 'd';
-
+      int directionCode = readVal.charAt(1) - 'd';
       int direction = tbl_CharDirectionToInt[directionCode];
 
       step(direction, steps);
