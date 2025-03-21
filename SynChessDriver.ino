@@ -533,6 +533,6 @@ char readRFID() {
 void switchMagnet(int state) {
   if(state != 0 && state != 1) return;
   
-  digitalWrite(PIN_MAGNET, 1);
+  digitalWrite(PIN_MAGNET, state);
 }
 // *************************************
